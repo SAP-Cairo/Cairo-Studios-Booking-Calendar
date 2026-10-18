@@ -1,0 +1,1403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Cairo Studios — Booking Calendar</title>
+<meta name="x-required-skills" content="529a6c03-cbf4-459e-94cd-1956011f9cf9" />
+<meta name="x-required-routes" content='[{"rpc_id":"529a6c03-cbf4-459e-94cd-1956011f9cf9","method":"POST","path":"/v1.0/me/sendMail"}]' />
+<style>
+:root{
+  --sap-blue:#1B90FF;--link-blue:#0070F2;--dark-navy:#002A86;
+  --deep-navy:#00144A;--light-blue:#89D1FF;--light-sky:#D1EFFF;
+  --white:#FFFFFF;--black:#000000;--dark-gray:#666666;
+  --mid-gray:#999999;--light-gray:#EAECEE;--very-light:#F5F7FA;
+  /* booking colours */
+  --gr-mine:#16A34A;--gr-mine-text:#fff;   /* Green Room — my booking   */
+  --gr-other:#F87171;--gr-other-text:#fff; /* Green Room — unavailable  */
+  --ds-mine:#0070F2;--ds-mine-text:#fff;   /* Digital Studio — my booking  */
+  --ds-other:#F87171;--ds-other-text:#fff; /* Digital Studio — unavailable */
+  /* layout */
+  --slot-h:52px;--time-w:62px;--room-w:110px;
+  --hdr-h:60px;--radius:6px;
+  --shadow:0 2px 12px rgba(0,42,134,.10);
+  --shadow-lg:0 8px 40px rgba(0,42,134,.20);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{
+  font-family:"72 Brand","SAP72",ui-sans-serif,system-ui,-apple-system,sans-serif;
+  font-size:14px;color:var(--black);background:var(--very-light);
+  height:100vh;display:flex;flex-direction:column;overflow:hidden;
+}
+
+/* ── Header ─────────────────────────────────────────────── */
+.site-hdr{
+  height:var(--hdr-h);background:var(--dark-navy);
+  display:flex;align-items:center;padding:0 20px;gap:14px;
+  flex-shrink:0;z-index:50;box-shadow:0 2px 8px rgba(0,0,0,.3);
+}
+.site-hdr svg.logo{height:26px;width:auto;}
+.hdr-div{width:1px;height:22px;background:rgba(255,255,255,.2);}
+.hdr-title{color:var(--white);font-size:14px;opacity:.85;}
+.hdr-user{
+  margin-left:auto;display:flex;align-items:center;gap:10px;
+}
+.user-chip{
+  display:flex;align-items:center;gap:8px;
+  background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);
+  border-radius:20px;padding:5px 12px;cursor:default;
+}
+.user-avatar{
+  width:24px;height:24px;border-radius:50%;
+  background:var(--link-blue);display:flex;align-items:center;
+  justify-content:center;font-size:10px;font-weight:700;color:#fff;
+  flex-shrink:0;
+}
+.user-name{font-size:12px;color:rgba(255,255,255,.85);}
+.hdr-badges{display:flex;gap:6px;}
+.badge{padding:3px 10px;border-radius:20px;font-size:11px;font-weight:500;}
+.badge-gr{background:rgba(22,163,74,.2);color:#16A34A;}
+.badge-ds{background:rgba(0,112,242,.2);color:var(--light-blue);}
+
+/* ── Toolbar ─────────────────────────────────────────────── */
+.toolbar{
+  height:52px;background:var(--white);
+  border-bottom:1px solid var(--light-gray);
+  display:flex;align-items:center;padding:0 16px;gap:10px;flex-shrink:0;
+}
+.btn{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:7px 14px;border-radius:var(--radius);
+  font-family:inherit;font-size:13px;font-weight:500;
+  cursor:pointer;border:none;transition:all .15s;
+}
+.btn-primary{background:var(--link-blue);color:var(--white);}
+.btn-primary:hover{background:#0058CC;}
+.btn-outline{background:var(--white);color:var(--dark-navy);border:1.5px solid var(--light-gray);}
+.btn-outline:hover{border-color:var(--link-blue);color:var(--link-blue);}
+.btn-today{background:var(--white);color:var(--link-blue);border:1.5px solid var(--link-blue);padding:6px 12px;font-size:12px;}
+.btn-today:hover{background:var(--light-sky);}
+.btn-danger{background:#FFEBEE;color:#C62828;border:1.5px solid #EF9A9A;}
+.btn-danger:hover{background:#FFCDD2;}
+.btn svg{width:15px;height:15px;}
+.week-nav{display:flex;align-items:center;gap:4px;}
+.nav-arr{
+  width:30px;height:30px;border-radius:var(--radius);background:var(--white);
+  border:1.5px solid var(--light-gray);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  color:var(--dark-gray);transition:all .15s;
+}
+.nav-arr:hover{border-color:var(--link-blue);color:var(--link-blue);}
+.nav-arr svg{width:14px;height:14px;}
+.week-lbl{font-size:13px;font-weight:600;color:var(--dark-navy);padding:0 10px;min-width:210px;text-align:center;}
+.toolbar-r{margin-left:auto;display:flex;align-items:center;gap:10px;}
+.legend{display:flex;gap:12px;align-items:center;}
+.leg-item{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--dark-gray);}
+.leg-dot{width:10px;height:10px;border-radius:3px;}
+.leg-mine{background:var(--mine-bg);}
+.leg-other{background:var(--other-bg);}
+
+/* ── Calendar wrapper ────────────────────────────────────── */
+.cal-wrap{flex:1;overflow:hidden;display:flex;flex-direction:column;}
+
+/* Sticky column headers */
+.cal-hdr{
+  flex-shrink:0;background:var(--white);
+  border-bottom:2px solid var(--light-gray);
+  display:flex;z-index:20;
+}
+.cal-hdr-gutter{
+  width:var(--time-w);flex-shrink:0;
+  border-right:1px solid var(--light-gray);background:var(--white);
+}
+.cal-hdr-days{flex:1;display:flex;overflow:hidden;}
+.day-hdr-grp{
+  flex:1;min-width:calc(var(--room-w)*2);
+  display:flex;flex-direction:column;
+  border-right:2px solid var(--light-gray);
+}
+.day-hdr-grp:last-child{border-right:none;}
+.day-hdr-grp.is-today .day-name-row{color:var(--link-blue);}
+.day-name-row{
+  height:34px;display:flex;align-items:center;justify-content:center;
+  font-size:12px;font-weight:600;color:var(--dark-gray);
+  border-bottom:1px solid var(--light-gray);gap:5px;
+}
+.today-pip{width:6px;height:6px;border-radius:50%;background:var(--link-blue);}
+.room-hdrs-row{display:flex;flex:1;}
+.room-hdr-cell{
+  flex:1;display:flex;align-items:center;justify-content:center;
+  font-size:10px;font-weight:600;text-align:center;
+  letter-spacing:.03em;text-transform:uppercase;padding:3px 2px;line-height:1.3;
+}
+.room-hdr-cell.gr{background:rgba(0,112,242,.07);color:var(--link-blue);border-right:1px solid var(--light-gray);}
+.room-hdr-cell.ds{background:rgba(0,42,134,.05);color:var(--dark-navy);}
+
+/* ── Calendar body ───────────────────────────────────────── */
+.cal-body{flex:1;display:flex;overflow:hidden;}
+.time-col{
+  width:var(--time-w);flex-shrink:0;
+  border-right:1px solid var(--light-gray);
+  background:var(--white);z-index:10;
+  position:sticky;left:0;
+}
+
+.time-tick{
+  height:var(--slot-h);display:flex;align-items:flex-start;
+  justify-content:flex-end;padding:4px 8px 0 0;
+  font-size:10px;color:var(--mid-gray);
+  border-bottom:1px solid var(--light-gray);
+}
+.time-tick.on-hour{border-bottom-color:rgba(0,0,0,.12);color:var(--dark-gray);font-size:11px;}
+.scroll-area{flex:1;overflow:auto;position:relative;display:flex;align-items:flex-start;}
+.days-track{display:flex;width:100%;min-width:max-content;position:relative;}
+
+.day-col-grp{
+  flex:1;min-width:calc(var(--room-w)*2);display:flex;
+  border-right:2px solid var(--light-gray);position:relative;
+}
+.day-col-grp:last-child{border-right:none;}
+.day-col-grp.is-today{background:rgba(27,144,255,.018);}
+
+.room-col{
+  flex:1;min-width:var(--room-w);
+  position:relative;border-right:1px solid var(--light-gray);overflow:hidden;
+}
+.room-col.ds-col{border-right:none;}
+
+.slot-zone{
+  height:var(--slot-h);border-bottom:1px solid var(--light-gray);
+  cursor:pointer;transition:background .12s;position:relative;
+}
+.slot-zone:hover{background:rgba(27,144,255,.07);}
+.slot-zone.on-hour{border-bottom-color:rgba(0,0,0,.1);}
+.slot-zone.past{background:rgba(0,0,0,.018);cursor:default;}
+.slot-zone.past:hover{background:rgba(0,0,0,.018);}
+
+/* ── Booking blocks ──────────────────────────────────────── */
+.bk-block{
+  position:absolute;left:2px;right:2px;
+  border-radius:4px;padding:4px 7px;
+  font-size:10px;line-height:1.35;
+  overflow:hidden;z-index:5;user-select:none;
+}
+/* Green Room — mine */
+.bk-gr-mine{
+  background:var(--gr-mine);color:var(--gr-mine-text);
+  cursor:pointer;transition:filter .12s,box-shadow .12s;
+  border-left:3px solid rgba(255,255,255,.5);
+}
+.bk-gr-mine:hover{filter:brightness(.88);box-shadow:0 2px 8px rgba(0,0,0,.25);z-index:6;}
+/* Green Room — others (unavailable) */
+.bk-gr-other{
+  background:var(--gr-other);color:var(--gr-other-text);
+  cursor:not-allowed;opacity:.85;
+  border-left:3px solid rgba(255,255,255,.3);
+}
+/* Digital Studio — mine */
+.bk-ds-mine{
+  background:var(--ds-mine);color:var(--ds-mine-text);
+  cursor:pointer;transition:filter .12s,box-shadow .12s;
+  border-left:3px solid rgba(255,255,255,.5);
+}
+.bk-ds-mine:hover{filter:brightness(.88);box-shadow:0 2px 8px rgba(0,0,0,.25);z-index:6;}
+/* Digital Studio — others (unavailable) */
+.bk-ds-other{
+  background:var(--ds-other);color:var(--ds-other-text);
+  cursor:not-allowed;opacity:.85;
+  border-left:3px solid rgba(255,255,255,.3);
+}
+.bk-title{font-weight:700;display:block;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.bk-time{opacity:.8;font-size:9px;display:block;}
+.bk-by{opacity:.75;font-size:9px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.bk-mine-label{
+  display:inline-block;margin-top:2px;
+  font-size:8px;font-weight:600;
+  background:rgba(255,255,255,.25);border-radius:2px;padding:1px 4px;
+  letter-spacing:.03em;
+}
+.bk-unavail-label{
+  display:inline-block;margin-top:2px;
+  font-size:8px;font-weight:600;
+  background:rgba(0,0,0,.18);border-radius:2px;padding:1px 4px;
+  letter-spacing:.03em;
+}
+
+/* ── Now line ────────────────────────────────────────────── */
+.now-line{
+  position:absolute;left:0;right:0;height:2px;
+  background:#E53935;z-index:8;pointer-events:none;
+}
+.now-line::before{
+  content:"";position:absolute;left:-4px;top:-4px;
+  width:10px;height:10px;border-radius:50%;background:#E53935;
+}
+
+/* ── Modal ───────────────────────────────────────────────── */
+.modal-overlay{
+  position:fixed;inset:0;
+  background:rgba(0,20,74,.55);backdrop-filter:blur(3px);
+  z-index:200;display:flex;align-items:center;justify-content:center;
+  padding:16px;opacity:0;pointer-events:none;transition:opacity .18s;
+}
+.modal-overlay.open{opacity:1;pointer-events:all;}
+.modal{
+  background:var(--white);border-radius:12px;
+  box-shadow:var(--shadow-lg);width:100%;max-width:560px;
+  max-height:92vh;overflow-y:auto;display:flex;flex-direction:column;
+  transform:scale(.95) translateY(10px);transition:transform .18s;
+}
+.modal-overlay.open .modal{transform:scale(1) translateY(0);}
+.modal-hdr{
+  background:var(--dark-navy);padding:18px 22px;
+  border-radius:12px 12px 0 0;
+  display:flex;align-items:flex-start;gap:10px;flex-shrink:0;
+}
+.modal-hdr h2{font-size:16px;color:var(--white);margin-bottom:3px;}
+.modal-hdr p{font-size:12px;color:rgba(255,255,255,.6);}
+.modal-x{
+  margin-left:auto;flex-shrink:0;width:28px;height:28px;
+  border-radius:50%;background:rgba(255,255,255,.12);
+  border:none;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  color:var(--white);transition:background .15s;
+}
+.modal-x:hover{background:rgba(255,255,255,.22);}
+.modal-x svg{width:14px;height:14px;}
+.modal-body{padding:22px;flex:1;}
+.modal-foot{
+  padding:14px 22px;border-top:1px solid var(--light-gray);
+  display:flex;justify-content:flex-end;gap:10px;flex-shrink:0;
+}
+
+/* Form fields */
+.fld{margin-bottom:14px;}
+.fld label{display:block;font-size:12px;font-weight:500;color:var(--dark-navy);margin-bottom:4px;}
+.fld label .req{color:#E53935;}
+.fld input,.fld select{
+  width:100%;padding:9px 12px;
+  border:1.5px solid var(--light-gray);border-radius:var(--radius);
+  font-family:inherit;font-size:13px;color:var(--black);
+  outline:none;transition:border-color .15s,box-shadow .15s;
+  appearance:none;-webkit-appearance:none;background:var(--white);
+}
+.fld select{
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 10px center;padding-right:30px;
+}
+.fld input:focus,.fld select:focus{border-color:var(--link-blue);box-shadow:0 0 0 3px rgba(0,112,242,.12);}
+.fld input.err,.fld select.err{border-color:#E53935;}
+.fld-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.fld-err{font-size:11px;color:#E53935;margin-top:3px;display:none;}
+.fld-hint{font-size:11px;color:var(--mid-gray);margin-top:3px;}
+
+.radio-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:2px;}
+.radio-opt{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:7px 12px;border-radius:var(--radius);
+  border:1.5px solid var(--light-gray);
+  cursor:pointer;font-size:12px;transition:all .15s;user-select:none;
+}
+.radio-opt input{display:none;}
+.radio-opt.sel{border-color:var(--link-blue);background:var(--light-sky);color:var(--link-blue);font-weight:600;}
+.radio-opt:hover:not(.sel){border-color:var(--sap-blue);}
+
+/* Detail view */
+.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.detail-item .det-lbl{font-size:11px;color:var(--mid-gray);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px;}
+.detail-item .det-val{font-size:14px;color:var(--dark-navy);font-weight:500;line-height:1.4;}
+.pill{display:inline-block;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:500;}
+.pill-gr{background:var(--light-sky);color:var(--link-blue);}
+.pill-ds{background:rgba(0,42,134,.08);color:var(--dark-navy);}
+.pill-demo{background:rgba(0,112,242,.1);color:#0070F2;}
+.pill-live{background:rgba(0,42,134,.1);color:#002A86;}
+.pill-self{background:rgba(34,160,107,.1);color:#22A06B;}
+
+/* Welcome modal */
+.welcome-intro{
+  background:var(--light-sky);border-radius:8px;
+  padding:14px 16px;margin-bottom:20px;
+  font-size:13px;color:var(--dark-navy);line-height:1.6;
+  border-left:4px solid var(--link-blue);
+}
+
+/* Alert / info banners */
+.alert{
+  padding:10px 14px;border-radius:var(--radius);
+  font-size:12px;margin-bottom:14px;line-height:1.5;
+}
+.alert-err{background:#FFEBEE;border:1.5px solid #EF9A9A;color:#C62828;}
+.alert-warn{background:#FFF8E1;border:1.5px solid #FFD54F;color:#795548;}
+
+/* ── Export dropdown ─────────────────────────────────────── */
+.export-wrap{position:relative;}
+.export-dropdown{
+  display:none;position:absolute;right:0;top:calc(100% + 6px);
+  background:var(--white);border:1.5px solid var(--light-gray);
+  border-radius:var(--radius);box-shadow:var(--shadow);
+  min-width:160px;z-index:50;overflow:hidden;
+}
+.export-dropdown.open{display:block;}
+.exp-opt{
+  padding:10px 16px;font-size:13px;color:var(--dark-navy);
+  cursor:pointer;transition:background .12s;display:flex;align-items:center;gap:8px;
+}
+.exp-opt:hover{background:var(--light-sky);color:var(--link-blue);}
+.exp-opt svg{width:14px;height:14px;flex-shrink:0;}
+.exp-sep{height:1px;background:var(--light-gray);}
+
+/* ── Toast ───────────────────────────────────────────────── */
+.toast{
+  position:fixed;bottom:24px;right:24px;
+  background:var(--dark-navy);color:#fff;
+  padding:12px 20px;border-radius:8px;font-size:13px;
+  z-index:300;box-shadow:0 4px 16px rgba(0,42,134,.35);
+  max-width:320px;line-height:1.5;
+  animation:slideIn .2s ease;
+}
+@keyframes slideIn{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
+
+/* ── Footer ──────────────────────────────────────────────── */
+.site-ftr{
+  background:var(--dark-navy);padding:10px 20px;
+  display:flex;align-items:center;justify-content:space-between;flex-shrink:0;
+}
+.site-ftr p{font-size:11px;color:rgba(255,255,255,.4);}
+.ftr-links{display:flex;gap:16px;}
+.ftr-links a{font-size:11px;color:rgba(255,255,255,.5);text-decoration:none;}
+.ftr-links a:hover{color:var(--light-blue);}
+
+/* ── Scrollbar ───────────────────────────────────────────── */
+.scroll-area::-webkit-scrollbar{width:6px;height:6px;}
+.scroll-area::-webkit-scrollbar-track{background:var(--very-light);}
+.scroll-area::-webkit-scrollbar-thumb{background:var(--light-gray);border-radius:3px;}
+.scroll-area::-webkit-scrollbar-thumb:hover{background:var(--mid-gray);}
+</style>
+</head>
+<body>
+
+<!-- ═══════════ HEADER ═══════════════════════════════════════ -->
+<header class="site-hdr">
+  <svg class="logo" viewBox="0 0 412.4 204" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="sg" x1="206.19" y1="206" x2="206.19" y2="2" gradientUnits="userSpaceOnUse" gradientTransform="matrix(1 0 0 -1 0 206)">
+        <stop offset="0" stop-color="#00B8F1"/><stop offset=".02" stop-color="#01B6F0"/>
+        <stop offset=".31" stop-color="#0D90D9"/><stop offset=".58" stop-color="#1775C8"/>
+        <stop offset=".82" stop-color="#1C65BF"/><stop offset="1" stop-color="#1E5FBB"/>
+      </linearGradient>
+    </defs>
+    <polyline fill="url(#sg)" points="0,204 208.4,204 412.4,0 0,0 0,204"/>
+    <path fill="#fff" d="M244.7,38.4h-40.6v96.5l-35.5-96.6h-35.2l-30.3,80.7C100,98.7,79,91.7,62.4,86.4C51.5,82.9,39.8,77.7,40,72c0.1-4.7,6.2-9,18.4-8.4c8.2,0.4,15.4,1.1,29.7,8l14.1-24.5c-13.1-6.6-31.2-10.9-46-10.9h-0.1c-17.3,0-31.7,5.6-40.6,14.8c-6.2,6.3-9.7,14.8-9.7,23.7C5.5,87.2,10.1,96,19.7,103c8.1,5.9,18.5,9.8,27.6,12.6c11.3,3.5,20.5,6.5,20.4,13c-0.1,2.4-1,4.7-2.7,6.4c-2.8,2.9-7.1,4-13.1,4.1c-11.5,0.2-20-1.6-33.6-9.6L5.8,154.4c14,8,29.9,12.2,46,12.2h2.1c14.2-0.2,25.7-4.3,34.9-11.7c0.5-0.4,1-0.8,1.5-1.3l-4.1,10.9H123l6.2-18.8c7,2.3,14.3,3.5,21.7,3.4c7.2,0,14.3-1.1,21.2-3.2l6,18.6h60.1v-39h13.1c31.7,0,50.5-16.2,50.5-43.2C301.7,52.2,283.5,38.4,244.7,38.4z M150.9,121c-4.4,0-8.8-0.7-13-2.3l12.9-40.6h0.2l12.6,40.7C159.6,120.3,155.2,121,150.9,121z M247.1,97.7h-8.9V64.9h8.9c11.9,0,21.4,4,21.4,16.1C268.5,93.7,259,97.6,247.1,97.7"/>
+  </svg>
+  <div class="hdr-div"></div>
+  <span class="hdr-title">Cairo Innovation Hub — Studio Bookings</span>
+  <div class="hdr-user">
+    <div class="hdr-badges">
+      <span class="badge badge-gr">Green Room</span>
+      <span class="badge badge-ds">Digital Studio</span>
+    </div>
+    <div class="user-chip" id="user-chip" style="display:none">
+      <div class="user-avatar" id="user-avatar"></div>
+      <span class="user-name" id="user-name-display"></span>
+    </div>
+  </div>
+</header>
+
+<!-- ═══════════ TOOLBAR ══════════════════════════════════════ -->
+<div class="toolbar">
+  <div class="week-nav">
+    <button class="nav-arr" id="btn-prev">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+    </button>
+    <span class="week-lbl" id="week-lbl"></span>
+    <button class="nav-arr" id="btn-next">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+    </button>
+  </div>
+  <button class="btn btn-today" id="btn-today">Today</button>
+  <div class="toolbar-r">
+    <div class="legend">
+      <div class="leg-item"><div class="leg-dot" style="background:#16A34A"></div>Green Room (mine)</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#0070F2"></div>Digital Studio (mine)</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#F87171"></div>Unavailable</div>
+    </div>
+    <button class="btn btn-primary" id="btn-new">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      New Booking
+    </button>
+    <div class="export-wrap">
+      <button class="btn btn-outline" id="btn-export">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Export
+      </button>
+      <div class="export-dropdown" id="export-dropdown">
+        <div class="exp-opt" id="exp-all">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+          All Bookings
+        </div>
+        <div class="exp-sep"></div>
+        <div class="exp-opt" id="exp-week">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          This Week
+        </div>
+        <div class="exp-sep"></div>
+        <div class="exp-opt" id="exp-month">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="3" y1="16" x2="21" y2="16"/></svg>
+          This Month
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ CALENDAR ═════════════════════════════════════ -->
+<div class="cal-wrap">
+  <div class="cal-hdr">
+    <div class="cal-hdr-gutter"></div>
+    <div class="cal-hdr-days" id="cal-hdr-days"></div>
+  </div>
+  <div class="cal-body">
+    <div class="scroll-area" id="scroll-area">
+      <div class="time-col" id="time-col"></div>
+      <div class="days-track" id="days-track"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ MODAL ════════════════════════════════════════ -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal" id="modal">
+    <div class="modal-hdr">
+      <div class="modal-hdr-text">
+        <h2 id="modal-title">Booking</h2>
+        <p id="modal-sub"></p>
+      </div>
+      <button class="modal-x" id="modal-close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-foot" id="modal-foot"></div>
+  </div>
+</div>
+
+<!-- ═══════════ FOOTER ═══════════════════════════════════════ -->
+<footer class="site-ftr">
+  <p>SAP Internal &nbsp;·&nbsp; Cairo Innovation Hub &nbsp;·&nbsp; &copy; 2026 SAP SE</p>
+  <div class="ftr-links">
+    <a href="mailto:DigitalAssetsManagementEMEA@sap.com">Contact</a>
+    <a href="#">Guidelines</a>
+  </div>
+</footer>
+
+<script>
+(function(){
+'use strict';
+
+/* ═══ Constants ══════════════════════════════════════════════ */
+var SLOT_H     = 52;
+var START_H    = 8;
+var END_H      = 18;
+var SLOTS      = (END_H - START_H) * 2; // 20
+var PX_PER_MIN = SLOT_H / 30;
+var ROOM_W     = 110;
+var DAYS       = ['Sun','Mon','Tue','Wed','Thu'];
+var MONTHS     = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+var ROOMS = [
+  { id:'green-room',     label:'Green Room',     cls:'gr' },
+  { id:'digital-studio', label:'Digital Studio',  cls:'ds' }
+];
+
+var PURPOSES = [
+  { id:'demo', label:'Digital Studio Demo',    pillCls:'pill-demo' },
+  { id:'live', label:'Live Streaming',         pillCls:'pill-live' },
+  { id:'self', label:'Self-service Greenroom', pillCls:'pill-self' }
+];
+
+var STORE_KEY   = 'cairo-bookings-v3';
+var SEEDED_KEY  = 'cairo-seeded-v4';
+var SESSION_KEY = 'cairo-session-v3';
+
+/* ═══ Date helpers ═══════════════════════════════════════════ */
+function getSunday(d){
+  var dt=new Date(d); dt.setHours(0,0,0,0);
+  dt.setDate(dt.getDate()-dt.getDay()); // getDay() 0=Sun
+  return dt;
+}
+function addDays(d,n){ var r=new Date(d); r.setDate(r.getDate()+n); return r; }
+function isoDate(d){ return d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate()); }
+function p2(n){ return n<10?'0'+n:String(n); }
+function fmtTime(dtStr){ return dtStr.substring(11,16); }
+function fmtFullDate(d){ return DAYS[d.getDay()]+' '+d.getDate()+' '+MONTHS[d.getMonth()]; }
+function toMin(t){ var s=t.split(':'); return +s[0]*60 + +s[1]; }
+function minToTime(m){ return p2(Math.floor(m/60))+':'+p2(m%60); }
+function overlap(s1,e1,s2,e2){ return s1<e2 && e1>s2; }
+function isToday(d){ return isoDate(d)===isoDate(new Date()); }
+function isPastSlot(dateStr,timeStr){
+  return new Date(dateStr+'T'+timeStr) < new Date();
+}
+function parsedt(s){ return new Date(s.replace('T',' ')); }
+
+/* ═══ Session (current user) ═════════════════════════════════ */
+function getSession(){
+  try{ return JSON.parse(localStorage.getItem(SESSION_KEY)||'null'); }
+  catch(e){ return null; }
+}
+function saveSession(s){ localStorage.setItem(SESSION_KEY,JSON.stringify(s)); }
+
+function isMyBooking(bk){
+  var s=getSession();
+  return s && bk.userId && bk.userId===s.userId;
+}
+
+/* ═══ Storage ════════════════════════════════════════════════ */
+function loadBookings(){
+  try{ return JSON.parse(localStorage.getItem(STORE_KEY)||'[]'); }
+  catch(e){ return []; }
+}
+function saveBookings(arr){ localStorage.setItem(STORE_KEY,JSON.stringify(arr)); }
+
+function getAllBookings(){
+  if(!localStorage.getItem(SEEDED_KEY)){
+    var seeds=buildSeeds(addDays(getSunday(new Date()),-7));
+    saveBookings(seeds);
+    localStorage.setItem(SEEDED_KEY,'1');
+  }
+  return loadBookings();
+}
+function addBooking(b){ var a=loadBookings(); a.push(b); saveBookings(a); }
+function updateBooking(b){
+  var a=loadBookings().map(function(x){ return x.id===b.id?b:x; });
+  saveBookings(a);
+}
+function deleteBooking(id){
+  saveBookings(loadBookings().filter(function(b){ return b.id!==id; }));
+}
+
+function buildSeeds(sunday){
+  function B(day,room,sh,sm,eh,em,title,by,role,opp,purpose){
+    var d=addDays(sunday,day), ds=isoDate(d);
+    return {
+      id:'s-'+Math.random().toString(36).slice(2),
+      userId:null, // no owner — will appear red/unavailable
+      title:title,bookedBy:by,role:role,opportunityId:opp,
+      startDateTime:ds+'T'+p2(sh)+':'+p2(sm),
+      endDateTime:  ds+'T'+p2(eh)+':'+p2(em),
+      purpose:purpose,room:room
+    };
+  }
+  return [
+    B(0,'digital-studio', 9, 0,11, 0,'SAP S/4HANA Finance Demo',       'Ahmed Hassan',   'Presales Consultant','OPP-7823','demo'),
+    B(0,'green-room',    14, 0,16, 0,'SuccessFactors HXM Walkthrough',  'Nada Farouk',    'Solution Engineer',  'OPP-8104','self'),
+    B(1,'green-room',     9,30,11,30,'BTP Integration Live Demo',        'Omar Khalil',    'Presales Consultant','OPP-7956','demo'),
+    B(1,'digital-studio',13, 0,15, 0,'Customer Briefing — Masr Telecom','Sara El-Sayed',  'Account Executive',  'OPP-8211','live'),
+    B(2,'digital-studio',10, 0,12, 0,'SAP Ariba Procurement Demo',      'Hossam Samir',   'Presales Consultant','OPP-7641','demo'),
+    B(2,'green-room',    14,30,16, 0,'Internal Innovation Pitch',        'Layla Mostafa',  'Innovation Lead',    '',        'self'),
+    B(3,'green-room',     8,30,10,30,'SAP Analytics Cloud Demo',         'Yasser Mahmoud', 'Presales Consultant','OPP-8399','demo'),
+    B(3,'digital-studio',11, 0,12, 0,'Live Stream — SAP Community Q&A', 'Rania Adel',     'Marketing Manager',  '',        'live'),
+    B(3,'digital-studio',14, 0,16,30,'SAP Build Low-Code Showcase',      'Karim Nabil',    'Solution Architect', 'OPP-8502','demo'),
+    B(4,'green-room',     9, 0,11, 0,'SuccessFactors Onboarding Demo',   'Mona Ashraf',    'Presales Consultant','OPP-8615','demo'),
+    B(4,'digital-studio',12, 0,13, 0,'Digital Studio Demo Recording',    'Ali Hassan',     'Digital Lead',       '',        'self'),
+  ];
+}
+
+/* ═══ State ══════════════════════════════════════════════════ */
+var currentWeekSunday = getSunday(new Date());
+
+/* ═══ Render calendar ════════════════════════════════════════ */
+function renderCalendar(){
+  renderHeader();
+  renderTimeTicks();
+  renderDaysTrack();
+  updateWeekLabel();
+}
+
+function updateWeekLabel(){
+  var thu=addDays(currentWeekSunday,4);
+  document.getElementById('week-lbl').textContent=
+    fmtFullDate(currentWeekSunday)+' – '+fmtFullDate(thu);
+}
+
+function renderHeader(){
+  var c=document.getElementById('cal-hdr-days'); c.innerHTML='';
+  for(var i=0;i<5;i++){
+    var d=addDays(currentWeekSunday,i);
+    var grp=el('div','day-hdr-grp'+(isToday(d)?' is-today':''));
+
+    var nr=el('div','day-name-row');
+    if(isToday(d)){ var pip=el('span','today-pip'); nr.appendChild(pip); }
+    nr.appendChild(tn(DAYS[i]+' '+d.getDate()+' '+MONTHS[d.getMonth()]));
+    grp.appendChild(nr);
+
+    var rh=el('div','room-hdrs-row');
+    ROOMS.forEach(function(r){
+      var cell=el('div','room-hdr-cell '+r.cls);
+      cell.textContent=r.label; rh.appendChild(cell);
+    });
+    grp.appendChild(rh); c.appendChild(grp);
+  }
+}
+
+function renderTimeTicks(){
+  var col=document.getElementById('time-col'); col.innerHTML='';
+  for(var s=0;s<SLOTS;s++){
+    var m=START_H*60+s*30;
+    var tick=el('div','time-tick'+(m%60===0?' on-hour':''));
+    tick.textContent=p2(Math.floor(m/60))+':'+p2(m%60);
+    col.appendChild(tick);
+  }
+  // 18:00 end-of-day marker — full row height so the grid visually closes at 18:00
+  var endTick=el('div','time-tick on-hour');
+  endTick.textContent='18:00';
+  col.appendChild(endTick);
+}
+
+function renderDaysTrack(){
+  var track=document.getElementById('days-track'); track.innerHTML='';
+  track.style.height=((SLOTS+1)*SLOT_H)+'px';
+  var bookings=getAllBookings();
+
+  for(var i=0;i<5;i++){
+    var d=addDays(currentWeekSunday,i);
+    var ds=isoDate(d);
+    var grp=el('div','day-col-grp'+(isToday(d)?' is-today':''));
+
+    ROOMS.forEach(function(room){
+      var col=el('div','room-col'+(room.id==='digital-studio'?' ds-col':''));
+      col.dataset.room=room.id; col.dataset.date=ds;
+
+      // slot zones
+      for(var s=0;s<SLOTS;s++){
+        var mm=START_H*60+s*30;
+        var timeStr=p2(Math.floor(mm/60))+':'+p2(mm%60);
+        var zone=el('div','slot-zone'+(mm%60===0?' on-hour':'')+(isPastSlot(ds,timeStr)?' past':''));
+        zone.dataset.time=timeStr; zone.dataset.room=room.id; zone.dataset.date=ds;
+        if(!isPastSlot(ds,timeStr)){
+          (function(rm,dt,tm){
+            zone.addEventListener('click',function(e){
+              if(e.target.closest('.bk-block')) return;
+              openNewModal(rm,dt,tm);
+            });
+          })(room.id,ds,timeStr);
+        }
+        col.appendChild(zone);
+      }
+      // 18:00 end-of-day boundary row — visible but not bookable
+      var endZone=el('div','slot-zone on-hour');
+      endZone.style.cursor='default';
+      col.appendChild(endZone);
+
+      // booking blocks
+      bookings
+        .filter(function(b){ return b.room===room.id && b.startDateTime.substring(0,10)===ds; })
+        .forEach(function(bk){ col.appendChild(buildBlock(bk)); });
+
+      grp.appendChild(col);
+    });
+
+    track.appendChild(grp);
+  }
+
+  // now-line
+  placeNowLine(track);
+}
+
+function buildBlock(bk){
+  var startMin=toMin(fmtTime(bk.startDateTime));
+  var endMin  =toMin(fmtTime(bk.endDateTime));
+  var top =(startMin-START_H*60)*PX_PER_MIN;
+  var height=Math.max((endMin-startMin)*PX_PER_MIN, 24);
+  var mine=isMyBooking(bk);
+  var isGR=bk.room==='green-room';
+  var bkCls=isGR?(mine?'bk-gr-mine':'bk-gr-other'):(mine?'bk-ds-mine':'bk-ds-other');
+  var blk=el('div','bk-block '+bkCls);
+  blk.style.top=top+'px'; blk.style.height=height+'px';
+
+  var inner='<span class="bk-title">'+esc(bk.title)+'</span>';
+  inner+='<span class="bk-time">'+fmtTime(bk.startDateTime)+' – '+fmtTime(bk.endDateTime)+'</span>';
+  if(height>46){ inner+='<span class="bk-by">'+esc(bk.bookedBy)+'</span>'; }
+  if(height>66){
+    if(mine) inner+='<span class="bk-mine-label">MY BOOKING</span>';
+    else     inner+='<span class="bk-unavail-label">UNAVAILABLE</span>';
+  }
+  blk.innerHTML=inner;
+
+  if(mine){
+    blk.title=bk.title+'\n'+fmtTime(bk.startDateTime)+' – '+fmtTime(bk.endDateTime)+'\nClick to view / edit';
+    blk.addEventListener('click',function(e){ e.stopPropagation(); openViewModal(bk); });
+  } else {
+    blk.title='Slot unavailable';
+    blk.addEventListener('click',function(e){ e.stopPropagation(); showToast('This slot is unavailable.','warn'); });
+  }
+  return blk;
+}
+
+function placeNowLine(track){
+  var now=new Date();
+  var nowMin=now.getHours()*60+now.getMinutes();
+  if(nowMin<START_H*60||nowMin>END_H*60) return;
+  var top=(nowMin-START_H*60)*PX_PER_MIN;
+  for(var i=0;i<5;i++){
+    var d=addDays(currentWeekSunday,i);
+    if(isoDate(d)!==isoDate(now)) continue;
+    var grp=track.querySelectorAll('.day-col-grp')[i];
+    if(!grp) return;
+    var line=el('div','now-line'); line.style.top=top+'px';
+    grp.appendChild(line);
+  }
+}
+
+/* ═══ Modal helpers ══════════════════════════════════════════ */
+function openModal(){ document.getElementById('modal-overlay').classList.add('open'); }
+function closeModal(){
+  document.getElementById('modal-overlay').classList.remove('open');
+  document.getElementById('modal-body').innerHTML='';
+  document.getElementById('modal-foot').innerHTML='';
+}
+function setModalHead(title,sub){
+  document.getElementById('modal-title').textContent=title;
+  document.getElementById('modal-sub').textContent=sub||'';
+}
+
+/* ═══ NEW BOOKING modal ══════════════════════════════════════ */
+function openNewModal(roomId,dateStr,timeStr){
+  setModalHead('New Booking','All fields marked * are required');
+  renderBookingForm(null, roomId, dateStr, timeStr);
+  openModal();
+}
+
+/* ═══ VIEW modal ═════════════════════════════════════════════ */
+function openViewModal(bk){
+  setModalHead('Booking Details','Ref: '+bk.id);
+  var purpose=PURPOSES.find(function(p){return p.id===bk.purpose;})||PURPOSES[0];
+  var room=ROOMS.find(function(r){return r.id===bk.room;})||ROOMS[0];
+  var sd=parsedt(bk.startDateTime);
+  var fullDate=DAYS[sd.getDay()]+', '+sd.getDate()+' '+MONTHS[sd.getMonth()]+' '+sd.getFullYear();
+
+  var body=document.getElementById('modal-body'); body.innerHTML='';
+  var grid=el('div','detail-grid');
+
+  function row(label,html){
+    var d=el('div','detail-item');
+    d.innerHTML='<div class="det-lbl">'+label+'</div><div class="det-val">'+html+'</div>';
+    return d;
+  }
+  grid.appendChild(row('Title','<span style="font-size:15px;font-weight:700">'+esc(bk.title)+'</span>'));
+  grid.appendChild(row('Booked By',esc(bk.bookedBy)));
+  grid.appendChild(row('Role',esc(bk.role)));
+  grid.appendChild(row('Opportunity ID',bk.opportunityId?esc(bk.opportunityId):'<em style="color:var(--mid-gray)">N/A</em>'));
+  grid.appendChild(row('Date',fullDate));
+  grid.appendChild(row('Time',fmtTime(bk.startDateTime)+' – '+fmtTime(bk.endDateTime)));
+  grid.appendChild(row('Room','<span class="pill '+(bk.room==='green-room'?'pill-gr':'pill-ds')+'">'+esc(room.label)+'</span>'));
+  grid.appendChild(row('Purpose','<span class="pill '+purpose.pillCls+'">'+esc(purpose.label)+'</span>'));
+  body.appendChild(grid);
+
+  var foot=document.getElementById('modal-foot'); foot.innerHTML='';
+  var closeBtn=el('button','btn btn-outline'); closeBtn.textContent='Close';
+  closeBtn.addEventListener('click',closeModal);
+
+  var editBtn=el('button','btn btn-primary');
+  editBtn.innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Edit';
+  editBtn.addEventListener('click',function(){
+    setModalHead('Edit Booking','Update the details below');
+    renderBookingForm(bk, bk.room, bk.startDateTime.substring(0,10), fmtTime(bk.startDateTime));
+  });
+
+  var delBtn=el('button','btn btn-danger');
+  delBtn.textContent='Cancel Booking';
+  delBtn.addEventListener('click',function(){
+    if(confirm('Cancel this booking?\n"'+bk.title+'"')){
+      deleteBooking(bk.id); closeModal(); renderCalendar(); showToast('Booking cancelled. Sending notification…'); sendBookingEmail(bk,'cancelled');
+    }
+  });
+
+  foot.appendChild(closeBtn); foot.appendChild(editBtn); foot.appendChild(delBtn);
+  openModal();
+}
+
+/* ═══ BOOKING FORM (new + edit) ══════════════════════════════ */
+function renderBookingForm(editBk, roomId, dateStr, startTimeStr){
+  var session=getSession()||{};
+  var isEdit=!!editBk;
+  var defEnd=minToTime(toMin(startTimeStr)+60);
+  if(toMin(defEnd)>END_H*60) defEnd=p2(END_H)+':00';
+
+  var body=document.getElementById('modal-body'); body.innerHTML='';
+
+  // ── helpers ──
+  function fld(id,label,type,value,placeholder,required,hint){
+    var w=el('div','fld');
+    var lb=el('label'); lb.htmlFor=id;
+    lb.innerHTML=label+(required?' <span class="req">*</span>':'');
+    w.appendChild(lb);
+    var inp=el('input'); inp.type=type; inp.id=id;
+    inp.value=value||''; inp.placeholder=placeholder||'';
+    w.appendChild(inp);
+    if(hint){ var h=el('div','fld-hint'); h.textContent=hint; w.appendChild(h); }
+    var err=el('div','fld-err'); err.id='err-'+id; err.textContent='This field is required.';
+    w.appendChild(err); return w;
+  }
+
+  // Title
+  body.appendChild(fld('f-title','Title','text', isEdit?editBk.title:'', 'e.g. S/4HANA Finance Demo', true));
+
+  // Booked By + Role
+  var row1=el('div','fld-row');
+  row1.appendChild(fld('f-by','Booked By','text', isEdit?editBk.bookedBy:session.name||'', 'Full name', true));
+  row1.appendChild(fld('f-role','Role','text', isEdit?editBk.role:session.role||'', 'e.g. Presales Consultant', true));
+  body.appendChild(row1);
+
+  // Opportunity ID
+  body.appendChild(fld('f-opp','Opportunity ID','text', isEdit?editBk.opportunityId:'', 'e.g. OPP-1234', true));
+
+  // Room
+  var fldRoom=el('div','fld');
+  var lbRoom=el('label'); lbRoom.innerHTML='Room <span class="req">*</span>';
+  fldRoom.appendChild(lbRoom);
+  var roomRadio=el('div','radio-row'); roomRadio.id='rg-room';
+  ROOMS.forEach(function(r){
+    var chosen=isEdit?editBk.room:roomId;
+    var opt=el('div','radio-opt'+(r.id===chosen?' sel':''));
+    opt.dataset.val=r.id;
+    opt.innerHTML='<input type="radio" name="f-room" value="'+r.id+'"'+(r.id===chosen?' checked':'')+'> '+r.label;
+    roomRadio.appendChild(opt);
+  });
+  fldRoom.appendChild(roomRadio);
+  var errRoom=el('div','fld-err'); errRoom.id='err-f-room'; errRoom.textContent='Please select a room.';
+  fldRoom.appendChild(errRoom); body.appendChild(fldRoom);
+
+  // Date + Time row
+  var fldDt=el('div','fld');
+  var lbDt=el('label'); lbDt.innerHTML='Date & Time <span class="req">*</span>';
+  fldDt.appendChild(lbDt);
+  var dtRow=el('div','fld-row');
+
+  // Date
+  var dWrap=el('div');
+  var dInp=el('input'); dInp.type='date'; dInp.id='f-date';
+  dInp.value=isEdit?editBk.startDateTime.substring(0,10):dateStr;
+  var today=new Date(); today.setHours(0,0,0,0);
+  dInp.min=isoDate(today);
+  var dErr=el('div','fld-err'); dErr.id='err-f-date'; dErr.textContent='Please select a valid date.';
+  dWrap.appendChild(dInp); dWrap.appendChild(dErr); dtRow.appendChild(dWrap);
+
+  // Start + End
+  var tWrap=el('div');
+  var tRow=el('div'); tRow.style.cssText='display:flex;gap:6px;align-items:center;';
+  function timeSel(id,val){
+    var sel=el('select'); sel.id=id; sel.style.flex='1';
+    for(var h=START_H;h<=END_H;h++){
+      for(var m=0;m<60;m+=30){
+        if(h===END_H&&m>0) break;
+        var tv=p2(h)+':'+p2(m);
+        var opt=el('option'); opt.value=tv; opt.textContent=tv;
+        if(tv===val) opt.selected=true;
+        sel.appendChild(opt);
+      }
+    }
+    return sel;
+  }
+  var startSel=timeSel('f-start', isEdit?fmtTime(editBk.startDateTime):startTimeStr);
+  var sep=el('span'); sep.textContent='–'; sep.style.color='var(--mid-gray)';
+  var endSel=timeSel('f-end', isEdit?fmtTime(editBk.endDateTime):defEnd);
+  tRow.appendChild(startSel); tRow.appendChild(sep); tRow.appendChild(endSel);
+  var tErr=el('div','fld-err'); tErr.id='err-f-time'; tErr.textContent='End time must be after start time.';
+  tWrap.appendChild(tRow); tWrap.appendChild(tErr);
+  dtRow.appendChild(tWrap); fldDt.appendChild(dtRow); body.appendChild(fldDt);
+
+  // Purpose
+  var fldPurpose=el('div','fld');
+  var lbP=el('label'); lbP.innerHTML='Purpose <span class="req">*</span>';
+  fldPurpose.appendChild(lbP);
+  var purpRadio=el('div','radio-row'); purpRadio.id='rg-purpose';
+  PURPOSES.forEach(function(p,idx){
+    var chosen=isEdit?editBk.purpose:null;
+    var isSel=chosen?p.id===chosen:idx===0;
+    var opt=el('div','radio-opt'+(isSel?' sel':''));
+    opt.dataset.val=p.id;
+    opt.innerHTML='<input type="radio" name="f-purpose" value="'+p.id+'"'+(isSel?' checked':'')+'> '+p.label;
+    purpRadio.appendChild(opt);
+  });
+  fldPurpose.appendChild(purpRadio);
+  var errP=el('div','fld-err'); errP.id='err-f-purpose'; errP.textContent='Please select a purpose.';
+  fldPurpose.appendChild(errP); body.appendChild(fldPurpose);
+
+  // Wire radio groups
+  wireRadio('rg-room'); wireRadio('rg-purpose');
+
+  // Footer buttons
+  var foot=document.getElementById('modal-foot'); foot.innerHTML='';
+  if(isEdit){
+    var backBtn=el('button','btn btn-outline'); backBtn.textContent='Back to Details';
+    backBtn.addEventListener('click',function(){ openViewModal(editBk); });
+    foot.appendChild(backBtn);
+  } else {
+    var cancelBtn=el('button','btn btn-outline'); cancelBtn.textContent='Cancel';
+    cancelBtn.addEventListener('click',closeModal);
+    foot.appendChild(cancelBtn);
+  }
+  var submitBtn=el('button','btn btn-primary');
+  submitBtn.textContent=isEdit?'Save Changes':'Confirm Booking';
+  submitBtn.addEventListener('click',function(){ submitForm(isEdit?editBk.id:null); });
+  foot.appendChild(submitBtn);
+}
+
+function wireRadio(groupId){
+  var grp=document.getElementById(groupId); if(!grp) return;
+  grp.addEventListener('click',function(e){
+    var opt=e.target.closest('.radio-opt'); if(!opt) return;
+    grp.querySelectorAll('.radio-opt').forEach(function(o){ o.classList.remove('sel'); });
+    opt.classList.add('sel');
+    var r=opt.querySelector('input[type="radio"]'); if(r) r.checked=true;
+  });
+}
+
+function radioVal(groupId){
+  var grp=document.getElementById(groupId); if(!grp) return '';
+  var sel=grp.querySelector('.radio-opt.sel'); return sel?sel.dataset.val:'';
+}
+
+function submitForm(editId){
+  var ok=true;
+  function req(id){
+    var inp=document.getElementById(id);
+    var err=document.getElementById('err-'+id);
+    if(!inp||!inp.value.trim()){ if(inp)inp.classList.add('err'); if(err)err.style.display='block'; ok=false; return ''; }
+    if(inp)inp.classList.remove('err'); if(err)err.style.display='none';
+    return inp.value.trim();
+  }
+  function get(id){ var e=document.getElementById(id); return e?e.value.trim():''; }
+  function hideErr(id){ var e=document.getElementById(id); if(e)e.style.display='none'; }
+  function showErr(id,msg){ var e=document.getElementById(id); if(e){e.textContent=msg||e.textContent;e.style.display='block';} ok=false; }
+
+  var title=req('f-title'), by=req('f-by'), role=req('f-role');
+  var opp=req('f-opp'), date=req('f-date');
+  var room=radioVal('rg-room'), purpose=radioVal('rg-purpose');
+  var start=get('f-start'), end=get('f-end');
+
+  if(!room) showErr('err-f-room'); else hideErr('err-f-room');
+  if(!purpose) showErr('err-f-purpose'); else hideErr('err-f-purpose');
+  if(!start||!end||toMin(end)<=toMin(start)) showErr('err-f-time','End time must be after start time.'); else hideErr('err-f-time');
+
+  if(!ok) return;
+
+  // Conflict check (exclude own booking if editing)
+  var all=getAllBookings();
+  var conflict=all.find(function(b){
+    if(editId && b.id===editId) return false;
+    if(b.room!==room) return false;
+    if(b.startDateTime.substring(0,10)!==date) return false;
+    return overlap(toMin(start),toMin(end),toMin(fmtTime(b.startDateTime)),toMin(fmtTime(b.endDateTime)));
+  });
+  if(conflict){
+    var errBanner=document.getElementById('form-conflict');
+    if(!errBanner){ errBanner=el('div','alert alert-err'); errBanner.id='form-conflict'; document.getElementById('modal-body').appendChild(errBanner); }
+    errBanner.innerHTML='<strong>Time conflict:</strong> Overlaps with "<strong>'+esc(conflict.title)+'</strong>" ('+fmtTime(conflict.startDateTime)+' – '+fmtTime(conflict.endDateTime)+').';
+    return;
+  }
+  var bk={
+    id:editId||('bk-'+Date.now().toString(36)),
+    userId:getSession().userId,
+    title:title,bookedBy:by,role:role,opportunityId:opp,
+    startDateTime:date+'T'+start,
+    endDateTime:  date+'T'+end,
+    purpose:purpose,room:room
+  };
+  if(editId){ updateBooking(bk); closeModal(); renderCalendar(); showToast('Booking updated. Sending notification…'); sendBookingEmail(bk,'edited'); }
+  else { addBooking(bk); closeModal(); renderCalendar(); showToast('Booking confirmed! Sending notification…'); sendBookingEmail(bk,'new'); }
+}
+
+/* ═══ EMAIL NOTIFICATION ═════════════════════════════════════ */
+var GRAPH_RPC = '529a6c03-cbf4-459e-94cd-1956011f9cf9';
+var NOTIFY_TO = 'Sandra.attala@sap.com';
+
+async function sendBookingEmail(bk, action){
+  // action: 'new' | 'edited' | 'cancelled'
+  action = action || 'new';
+  var purpose=(PURPOSES.find(function(p){return p.id===bk.purpose;})||PURPOSES[0]).label;
+  var room=(ROOMS.find(function(r){return r.id===bk.room;})||ROOMS[0]).label;
+  var sd=parsedt(bk.startDateTime);
+  var dateLabel=DAYS[sd.getDay()]+', '+sd.getDate()+' '+MONTHS[sd.getMonth()]+' '+sd.getFullYear();
+
+  var actionMeta={
+    new:      { banner:'#002A86', heading:'New Studio Booking',      subject:'New Studio Booking: ' },
+    edited:   { banner:'#0070F2', heading:'Booking Updated',         subject:'Booking Updated: ' },
+    cancelled:{ banner:'#C62828', heading:'Booking Cancelled',       subject:'Booking Cancelled: ' }
+  };
+  var meta=actionMeta[action]||actionMeta['new'];
+
+  var html=[
+    '<div style="font-family:Arial,sans-serif;max-width:560px;border:1px solid #EAECEE;border-radius:8px;overflow:hidden;">',
+    '<div style="background:'+meta.banner+';padding:20px 24px;">',
+    '<p style="color:#fff;font-size:18px;font-weight:700;margin:0;">'+meta.heading+'</p>',
+    '<p style="color:rgba(255,255,255,.65);font-size:13px;margin:4px 0 0;">Cairo Innovation Hub</p>',
+    '</div>',
+    '<div style="padding:24px;">',
+    '<table style="width:100%;border-collapse:collapse;font-size:14px;">',
+    row2('Title',esc(bk.title)),
+    row2('Booked By',esc(bk.bookedBy)),
+    row2('Role',esc(bk.role)),
+    row2('Opportunity ID',bk.opportunityId?esc(bk.opportunityId):'N/A'),
+    row2('Date',dateLabel),
+    row2('Time',fmtTime(bk.startDateTime)+' – '+fmtTime(bk.endDateTime)),
+    row2('Room',room),
+    row2('Purpose',purpose),
+    '</table>',
+    '</div>',
+    '<div style="background:#F5F7FA;padding:12px 24px;font-size:11px;color:#999;">',
+    'Booking ref: '+esc(bk.id)+' &nbsp;·&nbsp; Sent automatically by Cairo Studio Booking System',
+    '</div></div>'
+  ].join('');
+
+  function row2(label,val){
+    return '<tr><td style="padding:7px 0;color:#666;width:130px;vertical-align:top;">'+label+'</td>'+
+           '<td style="padding:7px 0;color:#000;font-weight:500;">'+val+'</td></tr>';
+  }
+
+  var payload={
+    message:{
+      subject:meta.subject+bk.title,
+      body:{contentType:'HTML',content:html},
+      toRecipients:[{emailAddress:{address:NOTIFY_TO}}]
+    },
+    saveToSentItems:false
+  };
+
+  try{
+    var res=await window.__pageContext.callRpc(GRAPH_RPC,'proxy/v1.0/me/sendMail',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(payload)
+    });
+    if(!res.ok && res.status!==202){ throw new Error('HTTP '+res.status); }
+    showToast('Notification sent to '+NOTIFY_TO);
+  } catch(e){
+    console.warn('Email notification failed:',e);
+    showToast('Action saved. Email notification could not be sent.','warn');
+  }
+}
+
+/* ═══ EXCEL EXPORT — pure JS, no external library ═══════════ */
+function exportBookings(scope){
+  var all=getAllBookings();
+  var now=new Date();
+  var filtered, label;
+
+  if(scope==='week'){
+    var sun=getSunday(currentWeekSunday);
+    var thu=addDays(sun,4);
+    filtered=all.filter(function(bk){
+      var d=bk.startDateTime.substring(0,10);
+      return d>=isoDate(sun)&&d<=isoDate(thu);
+    });
+    label='Week_'+isoDate(sun);
+  } else if(scope==='month'){
+    var yr=now.getFullYear(), mo=now.getMonth();
+    filtered=all.filter(function(bk){
+      var d=parsedt(bk.startDateTime);
+      return d.getFullYear()===yr&&d.getMonth()===mo;
+    });
+    label='Month_'+MONTHS[mo]+'_'+yr;
+  } else {
+    filtered=all;
+    label='All_'+isoDate(now);
+  }
+
+  if(!filtered.length){ showToast('No bookings found for the selected period.','warn'); return; }
+
+  try{
+    var headers=['Title','Booked By','Role','Opportunity ID','Start DateTime','End DateTime','Purpose','Room'];
+    var rows=filtered.map(function(bk){
+      var p=(PURPOSES.find(function(x){return x.id===bk.purpose;})||PURPOSES[0]).label;
+      var r=(ROOMS.find(function(x){return x.id===bk.room;})||ROOMS[0]).label;
+      return [bk.title||'',bk.bookedBy||'',bk.role||'',bk.opportunityId||'',
+              bk.startDateTime.replace('T',' '),bk.endDateTime.replace('T',' '),p,r];
+    });
+
+    var blob=buildXLSXBlob(headers,rows);
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement('a');
+    a.href=url; a.download='Cairo_Studio_Bookings_'+label+'.xlsx';
+    a.style.display='none'; document.body.appendChild(a); a.click();
+    setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(url); },200);
+    showToast('Exported '+filtered.length+' booking'+(filtered.length!==1?'s':'')+' to Excel.');
+  } catch(err){
+    console.error('Export error:',err);
+    showToast('Export failed: '+err.message,'warn');
+  }
+}
+
+/* ─── Minimal pure-JS XLSX builder ──────────────────────────── */
+function buildXLSXBlob(headers, rows){
+  function xe(v){ // XML-escape
+    return String(v==null?'':v)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+  function col(n){ // 0-based column index → letter(s)
+    var s=''; n++;
+    while(n>0){ n--; s=String.fromCharCode(65+n%26)+s; n=Math.floor(n/26); }
+    return s;
+  }
+
+  // Build worksheet XML
+  var allRows=[headers].concat(rows);
+  var sheetData='';
+  allRows.forEach(function(row,ri){
+    var cells='';
+    row.forEach(function(cell,ci){
+      cells+='<c r="'+col(ci)+(ri+1)+'" t="inlineStr"><is><t>'+xe(cell)+'</t></is></c>';
+    });
+    sheetData+='<row r="'+(ri+1)+'">'+cells+'</row>';
+  });
+
+  var files=[
+    {n:'[Content_Types].xml',
+     d:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+       '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'+
+       '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'+
+       '<Default Extension="xml" ContentType="application/xml"/>'+
+       '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'+
+       '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'+
+       '</Types>'},
+    {n:'_rels/.rels',
+     d:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+       '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+
+       '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>'+
+       '</Relationships>'},
+    {n:'xl/_rels/workbook.xml.rels',
+     d:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+       '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+
+       '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>'+
+       '</Relationships>'},
+    {n:'xl/workbook.xml',
+     d:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+       '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'+
+       '<sheets><sheet name="Bookings" sheetId="1" r:id="rId1"/></sheets>'+
+       '</workbook>'},
+    {n:'xl/worksheets/sheet1.xml',
+     d:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+       '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'+
+       '<sheetData>'+sheetData+'</sheetData></worksheet>'}
+  ];
+
+  return makeZipBlob(files);
+}
+
+function makeZipBlob(files){
+  var enc=new TextEncoder();
+  var entries=[], offset=0;
+
+  files.forEach(function(f){
+    var nb=enc.encode(f.n), db=enc.encode(f.d);
+    var crc=crc32b(db), sz=db.length;
+    var lh=new Uint8Array(30+nb.length), dv=new DataView(lh.buffer);
+    wu32(dv,0,0x04034b50); wu16(dv,4,20); wu16(dv,6,0); wu16(dv,8,0);
+    wu16(dv,10,0); wu16(dv,12,0); wu32(dv,14,crc);
+    wu32(dv,18,sz); wu32(dv,22,sz);
+    wu16(dv,26,nb.length); wu16(dv,28,0); lh.set(nb,30);
+
+    var cd=new Uint8Array(46+nb.length), cv=new DataView(cd.buffer);
+    wu32(cv,0,0x02014b50); wu16(cv,4,20); wu16(cv,6,20);
+    wu16(cv,8,0); wu16(cv,10,0); wu16(cv,12,0); wu16(cv,14,0);
+    wu32(cv,16,crc); wu32(cv,20,sz); wu32(cv,24,sz);
+    wu16(cv,28,nb.length); wu16(cv,30,0); wu16(cv,32,0);
+    wu16(cv,34,0); wu16(cv,36,0); wu32(cv,38,0); wu32(cv,42,offset);
+    cd.set(nb,46);
+
+    entries.push({lh:lh,db:db,cd:cd});
+    offset+=lh.length+sz;
+  });
+
+  var cdSz=entries.reduce(function(s,e){return s+e.cd.length;},0);
+  var eo=new Uint8Array(22), ev=new DataView(eo.buffer);
+  wu32(ev,0,0x06054b50); wu16(ev,4,0); wu16(ev,6,0);
+  wu16(ev,8,entries.length); wu16(ev,10,entries.length);
+  wu32(ev,12,cdSz); wu32(ev,16,offset); wu16(ev,20,0);
+
+  var parts=[];
+  entries.forEach(function(e){parts.push(e.lh,e.db);});
+  entries.forEach(function(e){parts.push(e.cd);});
+  parts.push(eo);
+
+  var total=parts.reduce(function(s,b){return s+b.length;},0);
+  var out=new Uint8Array(total), pos=0;
+  parts.forEach(function(b){out.set(b,pos);pos+=b.length;});
+  return new Blob([out],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+}
+
+function wu16(dv,o,v){dv.setUint16(o,v,true);}
+function wu32(dv,o,v){dv.setUint32(o,v,true);}
+
+function crc32b(data){
+  if(!crc32b.t){
+    var t=crc32b.t=new Uint32Array(256);
+    for(var n=0;n<256;n++){
+      var c=n;
+      for(var k=0;k<8;k++) c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1);
+      t[n]=c;
+    }
+  }
+  var crc=0xFFFFFFFF;
+  for(var i=0;i<data.length;i++) crc=crc32b.t[(crc^data[i])&0xFF]^(crc>>>8);
+  return (crc^0xFFFFFFFF)>>>0;
+}
+
+/* ═══ WELCOME modal ══════════════════════════════════════════ */
+function showWelcomeModal(){
+  setModalHead('Welcome to Cairo Studios','Please identify yourself to continue');
+  document.getElementById('modal-close').style.display='none';
+
+  var body=document.getElementById('modal-body'); body.innerHTML='';
+  var intro=el('div','welcome-intro');
+  intro.innerHTML='Your identity is stored locally in this browser. It lets you manage your own bookings — other people\'s slots appear as unavailable.';
+  body.appendChild(intro);
+
+  function fld(id,label,placeholder,required){
+    var w=el('div','fld');
+    var lb=el('label'); lb.htmlFor=id;
+    lb.innerHTML=label+(required?' <span class="req">*</span>':'');
+    w.appendChild(lb);
+    var inp=el('input'); inp.type='text'; inp.id=id; inp.placeholder=placeholder;
+    w.appendChild(inp);
+    var err=el('div','fld-err'); err.id='err-'+id; err.textContent='This field is required.';
+    w.appendChild(err); return w;
+  }
+  body.appendChild(fld('w-name','Your Full Name','e.g. Ahmed Hassan',true));
+  body.appendChild(fld('w-role','Your Role / Title','e.g. Presales Consultant',true));
+  body.appendChild(fld('w-email','SAP Email (optional)','ahmed.hassan@sap.com',false));
+
+  var foot=document.getElementById('modal-foot'); foot.innerHTML='';
+  var goBtn=el('button','btn btn-primary'); goBtn.textContent='Get Started';
+  goBtn.style.width='100%';
+  goBtn.addEventListener('click',function(){
+    var name=(document.getElementById('w-name')||{}).value||'';
+    var role=(document.getElementById('w-role')||{}).value||'';
+    var err1=document.getElementById('err-w-name');
+    var err2=document.getElementById('err-w-role');
+    var ok=true;
+    if(!name.trim()){ document.getElementById('w-name').classList.add('err'); if(err1)err1.style.display='block'; ok=false; }
+    else { document.getElementById('w-name').classList.remove('err'); if(err1)err1.style.display='none'; }
+    if(!role.trim()){ document.getElementById('w-role').classList.add('err'); if(err2)err2.style.display='block'; ok=false; }
+    else { document.getElementById('w-role').classList.remove('err'); if(err2)err2.style.display='none'; }
+    if(!ok) return;
+    var session={
+      userId:'u-'+Date.now().toString(36),
+      name:name.trim(), role:role.trim(),
+      email:(document.getElementById('w-email')||{}).value||''
+    };
+    saveSession(session);
+    updateUserChip(session);
+    closeModal();
+    document.getElementById('modal-close').style.display='';
+    renderCalendar();
+    initScrollSync();
+  });
+  foot.appendChild(goBtn);
+  openModal();
+}
+
+function updateUserChip(session){
+  var chip=document.getElementById('user-chip');
+  var av=document.getElementById('user-avatar');
+  var nm=document.getElementById('user-name-display');
+  if(!session){ chip.style.display='none'; return; }
+  chip.style.display='flex';
+  av.textContent=session.name.charAt(0).toUpperCase();
+  nm.textContent=session.name;
+}
+
+/* ═══ Utilities ══════════════════════════════════════════════ */
+function el(tag,cls){
+  var e=document.createElement(tag);
+  if(cls) e.className=cls; return e;
+}
+function tn(s){ return document.createTextNode(s); }
+function esc(s){
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function showToast(msg,type){
+  var t=el('div','toast');
+  if(type==='warn') t.style.background='#795548';
+  t.textContent=msg;
+  document.body.appendChild(t);
+  setTimeout(function(){ t.remove(); },3200);
+}
+
+/* ═══ Scroll sync + init scroll position ════════════════════ */
+function initScrollSync(){
+  var area=document.getElementById('scroll-area');
+  var hdrDays=document.getElementById('cal-hdr-days');
+  area.addEventListener('scroll',function(){
+    hdrDays.scrollLeft=area.scrollLeft;
+  });
+  // scroll to current time
+  var now=new Date();
+  var nowMin=now.getHours()*60+now.getMinutes();
+  if(nowMin>=START_H*60&&nowMin<=END_H*60){
+    setTimeout(function(){ area.scrollTop=Math.max(0,(nowMin-START_H*60)*PX_PER_MIN-100); },80);
+  }
+}
+
+/* ═══ Now-line refresh ═══════════════════════════════════════ */
+function scheduleNowLine(){
+  setTimeout(function(){
+    var track=document.getElementById('days-track');
+    if(track){ track.querySelectorAll('.now-line').forEach(function(l){l.remove();}); placeNowLine(track); }
+    scheduleNowLine();
+  },60000);
+}
+
+/* ═══ Wire controls ══════════════════════════════════════════ */
+document.getElementById('btn-prev').addEventListener('click',function(){
+  currentWeekSunday=addDays(currentWeekSunday,-7); renderCalendar();
+});
+document.getElementById('btn-next').addEventListener('click',function(){
+  currentWeekSunday=addDays(currentWeekSunday,7); renderCalendar();
+});
+document.getElementById('btn-today').addEventListener('click',function(){
+  currentWeekSunday=getSunday(new Date()); renderCalendar();
+});
+document.getElementById('btn-new').addEventListener('click',function(){
+  if(!getSession()){ showWelcomeModal(); return; }
+  var now=new Date();
+  var ds=isoDate(now);
+  var h=now.getHours(), m=now.getMinutes()<30?0:30;
+  if(h<START_H){h=START_H;m=0;} if(h>=END_H){h=END_H-1;m=30;}
+  openNewModal('green-room',ds,p2(h)+':'+p2(m));
+});
+document.getElementById('modal-close').addEventListener('click',closeModal);
+document.getElementById('modal-overlay').addEventListener('click',function(e){
+  if(e.target===this) closeModal();
+});
+
+/* Export button + dropdown */
+var exportBtn=document.getElementById('btn-export');
+var exportDD=document.getElementById('export-dropdown');
+exportBtn.addEventListener('click',function(e){
+  e.stopPropagation();
+  exportDD.classList.toggle('open');
+});
+document.addEventListener('click',function(){ exportDD.classList.remove('open'); });
+document.getElementById('exp-all').addEventListener('click',function(){ exportBookings('all'); });
+document.getElementById('exp-week').addEventListener('click',function(){ exportBookings('week'); });
+document.getElementById('exp-month').addEventListener('click',function(){ exportBookings('month'); });
+
+/* ═══ Init ═══════════════════════════════════════════════════ */
+var session=getSession();
+if(session){
+  updateUserChip(session);
+  renderCalendar();
+  initScrollSync();
+} else {
+  renderCalendar();   // render calendar behind the modal
+  initScrollSync();
+  showWelcomeModal();
+}
+scheduleNowLine();
+
+})();
+</script>
+</body>
+</html>
